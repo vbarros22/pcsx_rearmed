@@ -21,7 +21,12 @@ extern void SysPrintf(const char *fmt, ...);
 #include "../deps/libretro-common/rthreads/rthreads.c"
 #include "features/features_cpu.h"
 
+#ifdef HW_WUP
+/* Espresso: 3 cores; features_cpu.c isn't built for the Wii U */
+#define CORE_COUNT() 3
+#else
 #define CORE_COUNT() cpu_features_get_core_amount()
+#endif
 
 static void pcsxr_sthread_lib_init(void)
 {
@@ -114,6 +119,23 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
 #define pcsxr_sthread_lib_init()
 
 #endif
+
+/* Called by a worker thread on itself as it starts. Cafe OS: a thread
+ * moves itself safely; changing another, running thread's affinity from
+ * outside hung the console (Wii U). The emulated CPU and lightrec's
+ * codegen area stay on core 1; the software rasterizer goes to core 2. */
+#if defined(HW_WUP) && !defined(USE_C11_THREADS)
+#include <coreinit/thread.h>
+#endif
+void pcsxr_sthread_pin_self(enum pcsxr_thread_type type)
+{
+#if defined(HW_WUP) && !defined(USE_C11_THREADS)
+	if (type == PCSXRT_GPU)
+		OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU2);
+#else
+	(void)type;
+#endif
+}
 
 void pcsxr_sthread_init(void)
 {

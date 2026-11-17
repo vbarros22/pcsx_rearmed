@@ -49,7 +49,7 @@
 #endif
 #include <windows.h>
 #endif
-#elif defined(GEKKO)
+#elif defined(GEKKO) && !defined(HW_WUP)
 #define USE_GX_THREADS
 #include <gccore.h>
 #include <ogc/lwp.h>
@@ -69,7 +69,7 @@
 #include <pspkernel.h>
 #include <pspthreadman.h>
 #define STACKSIZE (32 * 1024)
-#elif defined(WIIU)
+#elif defined(WIIU) || defined(HW_WUP)
 #define USE_WIIU_THREADS
 #include <malloc.h>
 #include <string.h>

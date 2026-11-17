@@ -2834,7 +2834,11 @@ static void update_variables(bool in_flight)
       else if (strcmp(var.value, "disabled") == 0)
          pl_rearmed_cbs.thread_rendering = 0;
       else
+#ifdef HW_WUP
+         pl_rearmed_cbs.thread_rendering = 0; // auto: off on Wii U (hangs NFS3)
+#else
          pl_rearmed_cbs.thread_rendering = -1; // auto
+#endif
    }
 #endif
 

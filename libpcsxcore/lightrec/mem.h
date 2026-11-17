@@ -9,9 +9,11 @@
 #ifdef LIGHTREC
 
 #ifdef HW_WUP /* WiiU */
-#    define WUP_RWX_MEM_BASE		0x00802000
-#    define WUP_RWX_MEM_END		0x01000000
-#    define CODE_BUFFER_SIZE_DFT	(WUP_RWX_MEM_END - WUP_RWX_MEM_BASE)
+/* The JIT code lives in the OS codegen area (OSGetCodegenVirtAddrRange,
+ * 32 MiB on Aroma), not in the legacy 0x00800000 HBL area: under Aroma
+ * that one is shared with the function patcher trampolines and the
+ * loader, and overwriting it crashed hooked calls and app switches. */
+#    define CODE_BUFFER_SIZE_DFT	(8 * 1024 * 1024)
 #else
 #    define CODE_BUFFER_SIZE_DFT	(8 * 1024 * 1024)
 #endif

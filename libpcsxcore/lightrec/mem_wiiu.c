@@ -4,6 +4,8 @@
  */
 
 #include <coreinit/memorymap.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <malloc.h>
 #include <stdbool.h>
 
@@ -43,6 +45,27 @@ static void* psx_parallel;
 static void* psx_scratch;
 static void* psx_bios;
 
+/* coreinit exports (wut's coreinit/codegen.h and thread.h; the
+ * frontend/wiiu headers this core builds against don't carry them) */
+void OSGetCodegenVirtAddrRange(void **outVirtualAddress, uint32_t *outSize);
+uint32_t OSGetCodegenCore(void);
+int OSSwitchSecCodeGenMode(int mode); /* 0: RW-, 1: R-X */
+uint32_t OSGetCoreId(void);
+
+/* The codegen area is either writable or executable, never both. Lightrec
+ * brackets every write to its code buffer (allocator, emitter) with
+ * lightrec_wiiu_code_write(1)/(0); calls nest. */
+static int codegen_write_depth;
+
+void lightrec_wiiu_code_write(int enable) {
+	if (enable) {
+		if (codegen_write_depth++ == 0)
+			OSSwitchSecCodeGenMode(0);
+	} else if (codegen_write_depth > 0 && --codegen_write_depth == 0) {
+		OSSwitchSecCodeGenMode(1);
+	}
+}
+
 int lightrec_init_mmap(void) {
 	psx_mem      = memalign(OS_PAGE_SIZE, 0x200000);
 	psx_parallel = memalign(OS_PAGE_SIZE, 0x10000);
@@ -65,7 +88,7 @@ int lightrec_init_mmap(void) {
 	}
 	if (i != 4) {
 		for (int i = 0; i < 4; i++)
-			wiiu_unmap(avail_va + 0x200000 * i, 0x200000);
+			wiiu_unmap((void*)(avail_va + 0x200000 * i), 0x200000);
 		goto cleanup_allocations;
 	}
 	psxRegs.ptrs.psxM = (void*)avail_va;
@@ -85,7 +108,26 @@ int lightrec_init_mmap(void) {
 		goto cleanup_allocations;
 	}
 
-	code_buffer = WUP_RWX_MEM_BASE;
+	{
+		void *cg_addr = NULL;
+		uint32_t cg_size = 0;
+		OSGetCodegenVirtAddrRange(&cg_addr, &cg_size);
+		printf("[lightrec] codegen area %p size 0x%x (codegen core %u, running on %u)\n",
+		       cg_addr, (unsigned)cg_size, (unsigned)OSGetCodegenCore(),
+		       (unsigned)OSGetCoreId());
+		if (!cg_addr || cg_size < CODE_BUFFER_SIZE) {
+			printf("[lightrec] no usable codegen area, dynarec unavailable\n");
+			for (int i = 0; i < 4; i++)
+				wiiu_unmap(psxRegs.ptrs.psxM + 0x200000 * i, 0x200000);
+			wiiu_unmap(psxRegs.ptrs.psxP, 0x10000);
+			wiiu_unmap(psxRegs.ptrs.psxH, 0x10000);
+			wiiu_unmap(psxRegs.ptrs.psxR, 0x80000);
+			goto cleanup_allocations;
+		}
+		codegen_write_depth = 0;
+		OSSwitchSecCodeGenMode(1);
+		code_buffer = cg_addr;
+	}
 
 	return 0;
 

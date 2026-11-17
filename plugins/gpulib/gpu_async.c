@@ -42,6 +42,9 @@
 #define BARRIER() __asm__ __volatile__ ("dmb ishst" ::: "memory")
 #elif defined(HAVE_ARMV6)
 #define BARRIER() __asm__ __volatile__ ("mcr p15, 0, %0, c7, c10, 5" :: "r"(0) : "memory")
+#elif defined(__powerpc__) || defined(__PPC__)
+/* PowerPC is weakly ordered; the 750 family has no lwsync, so use sync */
+#define BARRIER() __asm__ __volatile__ ("sync" ::: "memory")
 #else
 #define BARRIER() __asm__ __volatile__ ("" ::: "memory")
 #endif
@@ -480,6 +483,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
   int renderer_dirty = 0;
 
   assert(agpu);
+  pcsxr_sthread_pin_self(PCSXRT_GPU);
   slock_lock(agpu->lock);
   while (!agpu->exit)
   {
@@ -829,7 +833,7 @@ void gpu_async_sync_ecmds(struct psx_gpu *gpu)
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   uint32_t i, ecmds[8];
   for (i = 1; i <= 6; i++)
-    ecmds[i] = HTOLE32(ecmds_[i]);
+    ecmds[i] = HTOLE32(gpu->ex_regs[i]);
 #else
   const uint32_t *ecmds = gpu->ex_regs;
 #endif

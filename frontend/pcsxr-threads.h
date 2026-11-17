@@ -13,6 +13,7 @@ enum pcsxr_thread_type
 extern int pcsxr_sthread_core_count;
 
 void pcsxr_sthread_init(void);
+void pcsxr_sthread_pin_self(enum pcsxr_thread_type type);
 
 #ifndef USE_C11_THREADS
 

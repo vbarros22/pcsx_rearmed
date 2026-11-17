@@ -360,7 +360,12 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL},
       },
+#ifdef HW_WUP
+      /* Wii U: the GPU thread still hangs some games (NFS3), so opt-in */
+      "disabled",
+#else
       "auto",
+#endif
    },
 #endif
    {

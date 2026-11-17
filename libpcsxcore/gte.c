@@ -701,6 +701,25 @@ static inline force_inline void gteMVMVA(psxCP2Regs *regs,
 	const s32 *cvp = (s32 *)&regs->CP2C.r[(cv << 3) + 5];
 	const s32 cv3[3] = { 0, 0, 0 };
 	s16 mx3[9];
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	/* Each PAIR keeps its halves as {h, l} on big-endian hosts, so the
+	 * registers can't be walked as an s16 array (vp[1] would be the next
+	 * pair's high half instead of VY, and the matrix would come out
+	 * R12,R11,R21,R13,...). Gather them in order. */
+	s16 vbe[3], mxbe[9];
+	int i;
+	{
+		const PAIR *pv = &regs->CP2D.p[v << 1];
+		const PAIR *pm = &regs->CP2C.p[mx << 3];
+		vbe[0] = pv[0].sw.l;
+		vbe[1] = pv[0].sw.h;
+		vbe[2] = pv[1].sw.l;
+		for (i = 0; i < 9; i++)
+			mxbe[i] = (i & 1) ? pm[i >> 1].sw.h : pm[i >> 1].sw.l;
+		vp = vbe;
+		mxp = mxbe;
+	}
+#endif
 
 	GTE_LOG("GTE MVMVA\n");
 

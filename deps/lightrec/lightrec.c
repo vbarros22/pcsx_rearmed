@@ -19,6 +19,16 @@
 #include "optimizer.h"
 #include "tlsf/tlsf.h"
 
+#ifdef HW_WUP
+/* Wii U codegen area: W^X, switched by the frontend (mem_wiiu.c) */
+void lightrec_wiiu_code_write(int enable);
+#define CODE_WRITE_BEGIN() lightrec_wiiu_code_write(1)
+#define CODE_WRITE_END()   lightrec_wiiu_code_write(0)
+#else
+#define CODE_WRITE_BEGIN() do {} while (0)
+#define CODE_WRITE_END()   do {} while (0)
+#endif
+
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -828,7 +838,9 @@ static void * lightrec_alloc_code(struct lightrec_state *state, size_t size)
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_code_alloc_lock(state);
 
+	CODE_WRITE_BEGIN();
 	code = tlsf_malloc(state->tlsf, size);
+	CODE_WRITE_END();
 
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_code_alloc_unlock(state);
@@ -845,7 +857,9 @@ static void lightrec_realloc_code(struct lightrec_state *state,
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_code_alloc_lock(state);
 
+	CODE_WRITE_BEGIN();
 	tlsf_realloc(state->tlsf, ptr, size);
+	CODE_WRITE_END();
 
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_code_alloc_unlock(state);
@@ -856,7 +870,9 @@ static void lightrec_free_code(struct lightrec_state *state, void *ptr)
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_code_alloc_lock(state);
 
+	CODE_WRITE_BEGIN();
 	tlsf_free(state->tlsf, ptr);
+	CODE_WRITE_END();
 
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_code_alloc_unlock(state);
@@ -914,7 +930,9 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 		jit_set_code(code, code_size);
 	}
 
+	CODE_WRITE_BEGIN();
 	code = jit_emit();
+	CODE_WRITE_END();
 	if (!code) {
 		if (has_code_buffer)
 			lightrec_free_code(state, code);
@@ -1894,8 +1912,10 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER
 	    && codebuf_map->address) {
+		CODE_WRITE_BEGIN();
 		tlsf = tlsf_create_with_pool(codebuf_map->address,
 					     codebuf_map->length);
+		CODE_WRITE_END();
 		if (!tlsf) {
 			pr_err("Unable to initialize code buffer\n");
 			return NULL;
