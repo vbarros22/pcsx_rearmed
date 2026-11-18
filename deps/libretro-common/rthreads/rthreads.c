@@ -1016,7 +1016,9 @@ sthread_t *sthread_create_with_priority(void (*thread_func)(void*), void *userda
          prio = 31;
 
       thread->id = (OSThread*)block;
-      if (OSCreateThread(thread->id, thread_wrap, 0, (char*)data,
+      /* Cast: wut changed the entry point's argv from const char** to
+       * void* (newer wut, e.g. the devkitpro/devkitppc image). */
+      if (OSCreateThread(thread->id, (OSThreadEntryPointFn)(void*)thread_wrap, 0, (char*)data,
             block + sizeof(OSThread) + STACKSIZE, STACKSIZE, prio,
             OS_THREAD_ATTRIB_AFFINITY_ANY))
       {
