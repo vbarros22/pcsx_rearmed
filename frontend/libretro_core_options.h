@@ -971,7 +971,12 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "enabled",  NULL },
          { NULL, NULL },
       },
+#ifdef HW_WUP
+      /* Wii U: mixing on core 0 frees the emulation core */
+      "enabled",
+#else
       "disabled",
+#endif
    },
 #endif
    {

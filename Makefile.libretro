@@ -426,11 +426,13 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	ifeq ($(WIIU_THREADS),1)
 		# Wii U: 3 cores; render the GPU on core 2 (frontend/pcsxr-threads.c)
 		USE_ASYNC_GPU = 1
+		# SPU mixing on core 0 (opt-in core option "Threaded SPU")
+		USE_ASYNC_SPU = 1
 		NO_FEATURES_CPU := 1
 	else
 		USE_ASYNC_GPU = 0
+		USE_ASYNC_SPU = 0
 	endif
-	USE_ASYNC_SPU = 0
 	USE_LIBRETRO_VFS = 0
 
 # QNX

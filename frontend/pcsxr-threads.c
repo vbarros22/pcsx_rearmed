@@ -132,6 +132,8 @@ void pcsxr_sthread_pin_self(enum pcsxr_thread_type type)
 #if defined(HW_WUP) && !defined(USE_C11_THREADS)
 	if (type == PCSXRT_GPU)
 		OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU2);
+	else if (type == PCSXRT_SPU)
+		OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU0);
 #else
 	(void)type;
 #endif

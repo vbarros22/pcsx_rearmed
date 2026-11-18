@@ -1301,10 +1301,21 @@ static void RemoveStreams(void)
 #elif defined(USE_ASYNC_SPU)
 
 #include "../../frontend/pcsxr-threads.h"
+#if defined(HW_WUP)
+/* Cafe OS has no POSIX semaphores; OSSemaphore does the same job */
+#include <coreinit/semaphore.h>
+typedef OSSemaphore sem_t;
+static int sem_init(sem_t *s, int pshared, unsigned v)
+{ (void)pshared; OSInitSemaphore(s, (int32_t)v); return 0; }
+#define sem_post(s)    OSSignalSemaphore(s)
+#define sem_wait(s)    OSWaitSemaphore(s)
+#define sem_destroy(s) do { } while (0)
+#else
 #ifdef _3DS
 #include <3ds/svc.h> // semaphore.h dep
 #endif
 #include <semaphore.h>
+#endif
 
 static struct {
  sthread_t *thread;
@@ -1337,6 +1348,7 @@ static STRHEAD_RET_TYPE spu_worker_thread(void *unused)
 {
  struct work_item *work;
 
+ pcsxr_sthread_pin_self(PCSXRT_SPU);
  while (1) {
   sem_wait(&t.sem_avail);
   if (worker->exit_thread)
