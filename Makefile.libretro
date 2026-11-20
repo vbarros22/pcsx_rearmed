@@ -411,12 +411,7 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 		WIIU_THREADS := 1
 	endif
 	ARCH = powerpc
-	ifeq ($(platform), wiiu)
-		# Wii U: gpu_unai is faster than peops here (ploggy's builds used it)
-		BUILTIN_GPU = unai
-	else
-		BUILTIN_GPU = peops
-	endif
+	BUILTIN_GPU = peops
 	CFLAGS += -D__ppc__ -D__powerpc__
 	CFLAGS += -DGEKKO -mcpu=750 -meabi -mhard-float
 	CFLAGS += -DNO_DYLIB
