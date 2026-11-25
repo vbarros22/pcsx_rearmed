@@ -22,6 +22,9 @@ void pcsxr_sthread_pin_self(enum pcsxr_thread_type type);
 struct sthread;
 struct slock;
 struct scond;
+#include <stdint.h>
+#include <stdbool.h>
+
 typedef struct sthread sthread_t;
 typedef struct slock slock_t;
 typedef struct scond scond_t;
