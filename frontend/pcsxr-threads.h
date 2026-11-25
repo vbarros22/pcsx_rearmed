@@ -41,6 +41,7 @@ void slock_unlock(struct slock *lock);
 struct scond *scond_new(void);
 void scond_free(struct scond *cond);
 void scond_wait(struct scond *cond, struct slock *lock);
+bool scond_wait_timeout(struct scond *cond, struct slock *lock, int64_t timeout_us);
 void scond_signal(struct scond *cond);
 
 #else
