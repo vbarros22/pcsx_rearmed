@@ -127,6 +127,23 @@ static int do_set_interlace(struct psx_gpu *gpu,
 static int do_dma_write(struct psx_gpu *gpu,
     const union cmd_dma_write *cmd, uint32_t pos);
 
+/* TEMP (Wii U): find where threaded rendering stalls */
+static volatile uint32_t agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len;
+
+static void agpu_wait(struct psx_gpu_async *agpu, const char *where)
+{
+  int n = 0;
+  while (!scond_wait_timeout(agpu->cond_add, agpu->lock, 2000000))
+  {
+    SysPrintf("agpu: STALL %s %ds: added %u used %u target %u mode %d idle %u"
+      " | thread stage %u cmd %02x len %u\n", where, (++n) * 2,
+      agpu->pos_added, agpu->pos_used, agpu->pos_target, (int)agpu->wait_mode,
+      agpu->idle, agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
+  }
+  if (n)
+    SysPrintf("agpu: %s resumed after %ds\n", where, n * 2);
+}
+
 static void run_thread_nolock(struct psx_gpu_async *agpu)
 {
   if (agpu->idle) {
@@ -202,7 +219,7 @@ static void do_add_with_wait(struct psx_gpu_async *agpu,
       assert(!agpu->idle);
       assert(agpu->wait_mode == waitmode_none);
       agpu->wait_mode = waitmode_progress;
-      scond_wait(agpu->cond_add, agpu->lock);
+      agpu_wait(agpu, "add");
     }
     slock_unlock(agpu->lock);
   }
@@ -504,6 +521,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
           assert(0);
       }
       agpu->idle = 1;
+      agpu_dbg_stage = 0;
       //agpu_log(&gpu, "%u/%u sleep\n", agpu->pos_used, RDPOS(agpu->pos_added));
       scond_wait(agpu->cond_use, agpu->lock);
       continue;
@@ -518,11 +536,17 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
     }
 
     len = min(len, AGPU_BUF_LEN - pos);
+    agpu_dbg_stage = 1;
+    agpu_dbg_cmd = agpu->cmd_buffer[pos] >> 24;
+    agpu_dbg_len = len;
     done = renderer_do_cmd_list(agpu->cmd_buffer + pos, len, agpu->ex_regs,
              &cycles_dummy, &cycles_dummy, &cmd);
     renderer_dirty |= done;
+    agpu_dbg_stage = 2;
     if (done != len) {
       const void *list = agpu->cmd_buffer + pos + done;
+      agpu_dbg_stage = 3;
+      agpu_dbg_cmd = cmd;
       switch (cmd) {
         case 0x80 ... 0x9f:
           done += do_vram_copy(gpup->vram, agpu->ex_regs, list);
@@ -552,6 +576,7 @@ static STRHEAD_RET_TYPE gpu_async_thread(void *unused)
     }
 
     assert(done > 0);
+    agpu_dbg_stage = 4;
     slock_lock(agpu->lock);
     agpu->pos_used += done;
     switch (agpu->wait_mode) {
@@ -677,7 +702,7 @@ static void gpu_async_sync_nocheck(struct psx_gpu *gpu)
   if (!agpu->idle) {
     assert(agpu->wait_mode == waitmode_none);
     agpu->wait_mode = waitmode_full;
-    scond_wait(agpu->cond_add, agpu->lock);
+    agpu_wait(agpu, "sync");
   }
   slock_unlock(agpu->lock);
   assert(agpu->pos_added == agpu->pos_used);
@@ -767,7 +792,7 @@ static void do_scanout_wait(struct psx_gpu *gpu, int check_ret, uint32_t target)
       assert(agpu->wait_mode == waitmode_none);
       agpu->pos_target = target;
       agpu->wait_mode = waitmode_target;
-      scond_wait(agpu->cond_add, agpu->lock);
+      agpu_wait(agpu, "scanout");
     }
     slock_unlock(agpu->lock);
   }
