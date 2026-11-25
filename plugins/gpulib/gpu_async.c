@@ -890,6 +890,8 @@ static void psx_gpu_async_free(struct psx_gpu_async *agpu)
  * Runs only while the GPU thread exists and is joined before it goes. */
 #include <coreinit/thread.h>
 #include <coreinit/time.h>
+#include <gx2/event.h>
+extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
 static struct sthread *agpu_wd_thread;
 static volatile int agpu_wd_quit;
 static void agpu_watchdog(void *unused)
@@ -906,15 +908,22 @@ static void agpu_watchdog(void *unused)
     if (++ticks < 30)
       continue;
     ticks = 0;
-    agpu = gpu.async;
-    if (agpu_wd_quit || !agpu)
+    if (agpu_wd_quit)
       continue;
+    agpu = gpu.async;
     frame = gpu.state.frame_count ? *gpu.state.frame_count : 0;
-    SysPrintf("agpu: WD frame %u (%s) | added %u used %u mode %d idle %u"
-      " stage %u cmd %02x len %u\n", frame,
-      frame == last_frame ? "STUCK" : "running",
-      agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
-      agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
+    {
+      int64_t sub = GX2GetLastSubmittedTimeStamp();
+      int64_t ret = GX2GetRetiredTimeStamp();
+      SysPrintf("WD frame %u (%s) run %u audio %u gx2 lag %d",
+        frame, frame == last_frame ? "STUCK" : "running",
+        pcsxr_dbg_run, pcsxr_dbg_audio, (int)(sub - ret));
+    }
+    if (agpu)
+      SysPrintf(" | agpu added %u used %u mode %d idle %u stage %u cmd %02x len %u",
+        agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
+        agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
+    SysPrintf("\n");
     last_frame = frame;
   }
 }
@@ -927,7 +936,7 @@ static void agpu_wd_start(void)
   agpu_wd_thread = pcsxr_sthread_create(agpu_watchdog, PCSXRT_CDR);
 }
 
-static void agpu_wd_stop(void)
+void agpu_wd_stop(void)
 {
   if (!agpu_wd_thread)
     return;
@@ -940,9 +949,6 @@ static void agpu_wd_stop(void)
 void gpu_async_stop(struct psx_gpu *gpu)
 {
   if (gpu->async) {
-#ifdef HW_WUP
-    agpu_wd_stop();
-#endif
     gpu_async_sync(gpu);
     psx_gpu_async_free(gpu->async);
     gpu->async = NULL;
@@ -953,6 +959,9 @@ void gpu_async_stop(struct psx_gpu *gpu)
 void gpu_async_enable(struct psx_gpu *gpu, int enable)
 {
   struct psx_gpu_async *agpu;
+#ifdef HW_WUP
+  agpu_wd_start();
+#endif
   if (enable < 0)
     enable = pcsxr_sthread_core_count > 1;
   if (!gpu->async == !enable)
@@ -976,9 +985,6 @@ void gpu_async_enable(struct psx_gpu *gpu, int enable)
       agpu->thread = pcsxr_sthread_create(gpu_async_thread, PCSXRT_GPU);
     }
     if (agpu->thread) {
-#ifdef HW_WUP
-      agpu_wd_start();
-#endif
       gpu_async_sync_ecmds(gpu);
       return;
     }

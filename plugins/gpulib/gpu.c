@@ -353,10 +353,16 @@ long GPUinit(void)
   return ret;
 }
 
+#ifdef HW_WUP
+void agpu_wd_stop(void);
+#endif
 long GPUshutdown(void)
 {
   long ret;
 
+#ifdef HW_WUP
+  agpu_wd_stop();
+#endif
   gpu_async_stop(&gpu);
   renderer_finish();
   ret = vout_finish();

@@ -855,11 +855,25 @@ void pl_gun_byte2(int port, unsigned char byte)
    }
 }
 
+#ifdef HW_WUP
+/* TEMP: where the main thread is, for the hang watchdog */
+volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
+#define DBG_RUN(n) pcsxr_dbg_run = (n)
+#else
+#define DBG_RUN(n)
+#endif
+
 /* sound calls */
 static void snd_feed(void *buf, int bytes)
 {
+#ifdef HW_WUP
+   pcsxr_dbg_audio++;
+#endif
    if (audio_batch_cb != NULL)
       audio_batch_cb(buf, bytes / 4);
+#ifdef HW_WUP
+   pcsxr_dbg_audio++;
+#endif
 }
 
 void out_register_libretro(struct out_driver *drv)
@@ -3559,6 +3573,7 @@ void retro_run(void)
       update_audio_latency = false;
    }
 
+   DBG_RUN(1);
    input_poll_cb();
 
    update_input();
@@ -3567,8 +3582,10 @@ void retro_run(void)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated)
       update_variables(true);
 
+   DBG_RUN(2);
    psxRegs.stop = 0;
    psxCpu->Execute(&psxRegs);
+   DBG_RUN(3);
 
    if (pl_rearmed_cbs.fskip_dirty) {
       if (frameskip_counter >= frameskip_interval || !pl_rearmed_cbs.fskip_force)
@@ -3582,9 +3599,11 @@ void retro_run(void)
       pl_rearmed_cbs.fskip_dirty = 0;
    }
 
+   DBG_RUN(4);
    video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
        vout_width, vout_height, vout_pitch_b);
    vout_fb_dirty = 0;
+   DBG_RUN(5);
 
 #ifdef HAVE_CDROM
    int inserted;
