@@ -893,6 +893,39 @@ void gpu_async_stop(struct psx_gpu *gpu)
   }
 }
 
+#ifdef HW_WUP
+/* TEMP: a heartbeat from a third core, so a hang that never reaches
+ * the waits above still says whether frames, the GPU thread or
+ * nothing at all moved. Never touches the other threads. */
+#include <coreinit/thread.h>
+#include <coreinit/time.h>
+static void agpu_watchdog(void *unused)
+{
+  uint32_t last_frame = 0;
+  OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU0);
+  OSSetThreadPriority(OSGetCurrentThread(), 8);
+  for (;;)
+  {
+    struct psx_gpu_async *agpu = gpu.async;
+    uint32_t frame = gpu.state.frame_count ? *gpu.state.frame_count : 0;
+    OSSleepTicks(OSMillisecondsToTicks(3000));
+    frame = gpu.state.frame_count ? *gpu.state.frame_count : 0;
+    if (frame != last_frame && agpu == NULL)
+    {
+      last_frame = frame;
+      continue;
+    }
+    SysPrintf("agpu: WD frame %u (%s) | added %u used %u mode %d idle %u"
+      " stage %u cmd %02x len %u\n", frame,
+      frame == last_frame ? "STUCK" : "running",
+      agpu ? agpu->pos_added : 0, agpu ? agpu->pos_used : 0,
+      agpu ? (int)agpu->wait_mode : -1, agpu ? agpu->idle : 0,
+      agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
+    last_frame = frame;
+  }
+}
+#endif
+
 void gpu_async_enable(struct psx_gpu *gpu, int enable)
 {
   struct psx_gpu_async *agpu;
@@ -919,6 +952,11 @@ void gpu_async_enable(struct psx_gpu *gpu, int enable)
       agpu->thread = pcsxr_sthread_create(gpu_async_thread, PCSXRT_GPU);
     }
     if (agpu->thread) {
+#ifdef HW_WUP
+      static int wd_started;
+      if (!wd_started)
+        wd_started = pcsxr_sthread_create(agpu_watchdog, PCSXRT_CDR) != NULL;
+#endif
       gpu_async_sync_ecmds(gpu);
       return;
     }
