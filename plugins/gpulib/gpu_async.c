@@ -925,6 +925,21 @@ static void agpu_wd_dump(void)
       (void *)th->queue, (void *)th->mutex);
     agpu_wd_sym("pc", th->context.srr0);
     agpu_wd_sym("lr", th->context.lr);
+    if (th->state == 2)
+    {
+      uint32_t *g = th->context.gpr, pc = th->context.srr0 & ~3u;
+      for (i = 0; i < 32; i += 8)
+        pcsxr_wd_log("WD   r%d %08x %08x %08x %08x %08x %08x %08x %08x\n", i,
+          g[i], g[i+1], g[i+2], g[i+3], g[i+4], g[i+5], g[i+6], g[i+7]);
+      pcsxr_wd_log("WD   ctr %08x cr %08x\n", th->context.ctr, th->context.cr);
+      if (OSIsAddressValid(pc - 64) && OSIsAddressValid(pc + 28))
+        for (i = -16; i < 8; i += 8)
+        {
+          const uint32_t *w = (const uint32_t *)(pc + i * 4);
+          pcsxr_wd_log("WD   code %08x: %08x %08x %08x %08x %08x %08x %08x %08x\n",
+            pc + i * 4, w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+        }
+    }
     sp = th->context.gpr[1];
     for (i = 0; i < 10; i++)
     {
