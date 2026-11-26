@@ -863,6 +863,21 @@ volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsx
 extern void *pcsxr_dbg_thread[];
 #define DBG_RUN(n) do { pcsxr_dbg_run = (n); \
    pcsxr_dbg_thread[PCSXRT_COUNT] = OSGetCurrentThread(); } while (0)
+void pcsxr_dbg_psx(void)
+{
+   u32 pc = psxRegs.pc & ~3u, a;
+   SysPrintf("WD  psx pc %08x ra %08x cyc %08x next %08x int %05x stop %u"
+      " I_STAT %04x I_MASK %04x\n", psxRegs.pc, psxRegs.GPR.n.ra,
+      psxRegs.cycle, psxRegs.next_interupt, psxRegs.interrupt,
+      psxRegs.stop, psxHu32(0x1070) & 0xffff, psxHu32(0x1074) & 0xffff);
+   SysPrintf("WD  psx code");
+   for (a = pc - 16; a != pc + 32; a += 4)
+   {
+      u32 *p = (u32 *)PSXM(a);
+      SysPrintf(" %08x", p != INVALID_PTR ? SWAP32(*p) : 0xdeadbeef);
+   }
+   SysPrintf("\n");
+}
 #else
 #define DBG_RUN(n)
 #endif

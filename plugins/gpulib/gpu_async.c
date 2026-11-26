@@ -897,6 +897,7 @@ extern int OSIsAddressValid(uint32_t addr);
 #include <gx2/swap.h>
 extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup;
 extern void *pcsxr_dbg_thread[];
+extern void pcsxr_dbg_psx(void);
 
 static void agpu_wd_sym(const char *what, uint32_t addr)
 {
@@ -940,13 +941,13 @@ static void agpu_watchdog(void *unused)
   uint32_t last_frame = 0;
   int ticks = 0;
   OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU0);
-  OSSetThreadPriority(OSGetCurrentThread(), 8);
+  OSSetThreadPriority(OSGetCurrentThread(), 1);
   while (!agpu_wd_quit)
   {
     struct psx_gpu_async *agpu;
     uint32_t frame;
     OSSleepTicks(OSMillisecondsToTicks(100));
-    if (++ticks < 30)
+    if (++ticks < 10)
       continue;
     ticks = 0;
     if (agpu_wd_quit)
@@ -972,6 +973,7 @@ static void agpu_watchdog(void *unused)
         agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
         agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
     SysPrintf("\n");
+    pcsxr_dbg_psx();
     if (frame == last_frame && frame)
       agpu_wd_dump();
     last_frame = frame;
