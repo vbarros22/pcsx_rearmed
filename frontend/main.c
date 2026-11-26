@@ -75,6 +75,23 @@ int hud_new_msg;
 
 void set_cd_image(const char *fname)
 {
+#ifdef HW_WUP
+	/* TEMP: read the disc through wut's own fs: device, not the sd:
+	 * one libmocha mounts, to see whether the hang follows the mount */
+	static char path[1024];
+	FILE *f;
+	if (fname && !strncmp(fname, "sd:/", 4)) {
+		snprintf(path, sizeof(path), "fs:/vol/external01/%s", fname + 4);
+		f = fopen(path, "rb");
+		if (f) {
+			fclose(f);
+			SysPrintf("cd image via %s\n", path);
+			SetIsoFile(path);
+			return;
+		}
+		SysPrintf("cd image: %s not readable, keeping sd:\n", path);
+	}
+#endif
 	SetIsoFile(fname);
 }
 
