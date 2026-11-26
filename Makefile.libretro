@@ -426,6 +426,9 @@ else ifneq (,$(filter $(platform),ngc wii wiiu))
 	ifeq ($(WIIU_THREADS),1)
 		# Wii U: 3 cores; render the GPU on core 2 (frontend/pcsxr-threads.c)
 		USE_ASYNC_GPU = 1
+		# CD reads ahead on core 2: a read from the emulator thread on
+		# core 1 was seen to stop that core outright
+		USE_ASYNC_CDROM = 1
 		# SPU mixing on core 0 (opt-in core option "Threaded SPU")
 		USE_ASYNC_SPU = 1
 		NO_FEATURES_CPU := 1

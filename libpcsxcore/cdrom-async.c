@@ -76,6 +76,7 @@ static void lbacache_do(u32 lba, u32 cdda_bit)
 
    lba2msf(lba + 150, &msf[0], &msf[1], &msf[2]);
    slock_lock(acdrom.read_lock);
+   PCSXR_WHERE(4, 0x300);
    if (g_cd_handle)
       ret = rcdrom_readSector(g_cd_handle, lba, buf);
    else if (cdda_bit)
@@ -89,6 +90,7 @@ static void lbacache_do(u32 lba, u32 cdda_bit)
          ret |= ISOreadSub(msf, buf_sub);
    }
 
+   PCSXR_WHERE(4, 0);
    slock_lock(acdrom.buf_lock);
    slock_unlock(acdrom.read_lock);
    acdrom_dbg("c  %d:%02d:%02d %2d m%d f%d\n", msf[0], msf[1], msf[2], ret,
@@ -354,8 +356,11 @@ static int cdra_do_read(const unsigned char *time, int is_cdda,
          ret = ISOreadSub(time, buf_sub);
       else if (is_cdda)
          ret = ISOreadCDDA(time, buf);
-      else
+      else {
+         PCSXR_WHERE(2, 0x302);
          ret = ISOreadTrack(time, buf);
+         PCSXR_WHERE(2, 0);
+      }
       if (ret)
          SysPrintf("cdrom read failed for lba %d: %d\n", lba, ret);
    }

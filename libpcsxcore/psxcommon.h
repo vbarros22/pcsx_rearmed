@@ -33,7 +33,7 @@ extern "C" {
 
 #ifdef HW_WUP
 /* TEMP: what the emulator thread is in, for the hang watchdog */
-extern volatile unsigned pcsxr_where[4];
+extern volatile unsigned pcsxr_where[8];
 #define PCSXR_WHERE(i, v) (pcsxr_where[i] = (v))
 #else
 #define PCSXR_WHERE(i, v)

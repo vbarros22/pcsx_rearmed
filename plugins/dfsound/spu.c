@@ -27,7 +27,7 @@
 #include "registers.h"
 #include "out.h"
 #ifdef HW_WUP
-extern volatile unsigned pcsxr_where[4];
+extern volatile unsigned pcsxr_where[8];
 #define PCSXR_WHERE(i, v) (pcsxr_where[i] = (v))
 #else
 #define PCSXR_WHERE(i, v)
