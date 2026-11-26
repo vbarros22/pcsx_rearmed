@@ -75,11 +75,6 @@ int hud_new_msg;
 
 void set_cd_image(const char *fname)
 {
-#ifdef HW_WUP
-	/* Hold the whole CHD in memory: steady reads from the SD card
-	 * during play were seen to hang the console */
-	Config.CHD_Precache = 1;
-#endif
 	SetIsoFile(fname);
 }
 
