@@ -80,6 +80,8 @@ void set_cd_image(const char *fname)
 	 * one libmocha mounts, to see whether the hang follows the mount */
 	static char path[1024];
 	FILE *f;
+	/* TEMP: the whole CHD in memory, so play does no file reads */
+	Config.CHD_Precache = 1;
 	if (fname && !strncmp(fname, "sd:/", 4)) {
 		snprintf(path, sizeof(path), "fs:/vol/external01/%s", fname + 4);
 		f = fopen(path, "rb");
