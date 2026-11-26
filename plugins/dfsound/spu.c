@@ -26,6 +26,12 @@
 #include "externals.h"
 #include "registers.h"
 #include "out.h"
+#ifdef HW_WUP
+extern volatile unsigned pcsxr_where[4];
+#define PCSXR_WHERE(i, v) (pcsxr_where[i] = (v))
+#else
+#define PCSXR_WHERE(i, v)
+#endif
 #include "spu_config.h"
 #include "spu.h"
 
@@ -1181,7 +1187,9 @@ void schedule_next_irq(void)
 
 void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 {
+ PCSXR_WHERE(2, 0x400);
  do_samples(cycle, 0);
+ PCSXR_WHERE(2, 0);
 
  if (spu.spuCtrl & CTRL_IRQ)
   schedule_next_irq();

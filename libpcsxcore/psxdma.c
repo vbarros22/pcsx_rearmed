@@ -176,7 +176,9 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 					break;
 				}
 				words_copy = min(words_left, words_max);
+				PCSXR_WHERE(3, 0x500);
 				GPU_writeDataMem(ptr, words_copy);
+				PCSXR_WHERE(3, 0);
 				words_left -= words_copy;
 				madr += words_copy * 4;
 			}
@@ -200,8 +202,10 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 				do_walking = Config.hacks.gpu_slow_list_walking;
 			madr_next_p = do_walking ? &madr_next : NULL;
 
+			PCSXR_WHERE(3, 0x501);
 			cycles_sum = GPU_dmaChain((u32 *)psxRegs.ptrs.psxM, madr & 0x1fffff,
 					madr_next_p, &cycles_last_cmd);
+			PCSXR_WHERE(3, 0);
 
 			HW_DMA2_MADR = SWAPu32(madr_next);
 
@@ -234,8 +238,10 @@ void gpuInterrupt() {
 
 		do {
 			cycles_sum += cycles_last_cmd;
+			PCSXR_WHERE(3, 0x502);
 			cycles_sum += GPU_dmaChain((u32 *)psxRegs.ptrs.psxM,
 					madr_next & 0x1fffff, &madr_next, &cycles_last_cmd);
+			PCSXR_WHERE(3, 0);
 		}
 		while (cycles_sum <= 0 && !(madr_next & 0x800000));
 		HW_DMA2_MADR = SWAPu32(madr_next);

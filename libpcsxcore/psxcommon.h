@@ -31,6 +31,14 @@ extern "C" {
 
 #include "config.h"
 
+#ifdef HW_WUP
+/* TEMP: what the emulator thread is in, for the hang watchdog */
+extern volatile unsigned pcsxr_where[4];
+#define PCSXR_WHERE(i, v) (pcsxr_where[i] = (v))
+#else
+#define PCSXR_WHERE(i, v)
+#endif
+
 // XXX: don't care but maybe fix it someday
 #if defined(__GNUC__) && __GNUC__ >= 8
 #pragma GCC diagnostic ignored "-Wformat-truncation"

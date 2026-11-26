@@ -85,7 +85,9 @@ void psxHwWriteChcr##n(u32 value) \
 		if (!(value & 0x01000000)) \
 			abort_func; \
 		else if (HW_DMA_PCR & SWAPu32(8u << (n * 4))) \
+		{ PCSXR_WHERE(1, 0x700 + n); \
 			psxDma##n(SWAPu32(HW_DMA##n##_MADR), SWAPu32(HW_DMA##n##_BCR), value); \
+			PCSXR_WHERE(1, 0); } \
 	} \
 }
 

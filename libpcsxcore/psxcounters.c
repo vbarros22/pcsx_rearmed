@@ -395,7 +395,9 @@ void psxRcntUpdate()
         if( hSyncCount == VBlankStart )
         {
             HW_GPU_STATUS &= SWAP32(~PSXGPU_LCF);
+            PCSXR_WHERE(3, 0x510);
             GPU_vBlank( 1, 0 );
+            PCSXR_WHERE(3, 0);
             setIrq( 0x01 );
 
             EmuUpdate();
@@ -423,7 +425,9 @@ void psxRcntUpdate()
                 status ^= field << 13;
             }
             HW_GPU_STATUS = SWAP32(status);
+            PCSXR_WHERE(3, 0x511);
             GPU_vBlank(0, field);
+            PCSXR_WHERE(3, 0);
             if ((s32)(psxRegs.gpuIdleAfter - psxRegs.cycle) < 0)
                 psxRegs.gpuIdleAfter = psxRegs.cycle - 1; // prevent overflow
 

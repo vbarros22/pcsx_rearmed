@@ -375,8 +375,12 @@ static int cdra_do_read(const unsigned char *time, int is_cdda,
 int cdra_readTrack(const unsigned char *time)
 {
    if (!acdrom.thread && !g_cd_handle) {
+      int ret;
       // just forward to ISOreadTrack to avoid extra copying
-      return ISOreadTrack(time, NULL);
+      PCSXR_WHERE(2, 0x300);
+      ret = ISOreadTrack(time, NULL);
+      PCSXR_WHERE(2, 0);
+      return ret;
    }
    return cdra_do_read(time, 0, acdrom.buf_local, NULL);
 }
@@ -510,12 +514,20 @@ int cdra_prefetch(unsigned char m, unsigned char s, unsigned char f, int is_cdda
 // time: msf in non-bcd format
 int cdra_readTrack(const unsigned char *time)
 {
-   return ISOreadTrack(time, NULL);
+   int ret;
+   PCSXR_WHERE(2, 0x300);
+   ret = ISOreadTrack(time, NULL);
+   PCSXR_WHERE(2, 0);
+   return ret;
 }
 
 int cdra_readCDDA(const unsigned char *time, void *buffer)
 {
-   return ISOreadCDDA(time, buffer);
+   int ret;
+   PCSXR_WHERE(2, 0x301);
+   ret = ISOreadCDDA(time, buffer);
+   PCSXR_WHERE(2, 0);
+   return ret;
 }
 
 int cdra_readSub(const unsigned char *time, void *buffer)

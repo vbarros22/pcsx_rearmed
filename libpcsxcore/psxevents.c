@@ -73,7 +73,9 @@ void irq_test(psxCP0Regs *cp0)
 		if ((s32)(cycle - regs->event_cycles[irq]) >= 0) {
 			// note: irq_funcs() also modify regs->interrupt
 			regs->interrupt &= ~(1u << irq);
+			PCSXR_WHERE(0, 0x100 + irq);
 			irq_funcs[irq]();
+			PCSXR_WHERE(0, 0);
 		}
 	}
 

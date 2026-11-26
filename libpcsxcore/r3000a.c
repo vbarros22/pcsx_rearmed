@@ -138,8 +138,11 @@ void psxException(u32 cause, enum R3000Abdt bdt, psxCP0Regs *cp0) {
 }
 
 void psxBranchTest(psxRegisters *regs) {
-	if ((regs->cycle - regs->psxNextsCounter) >= regs->psxNextCounter)
+	if ((regs->cycle - regs->psxNextsCounter) >= regs->psxNextCounter) {
+		PCSXR_WHERE(0, 0x200);
 		psxRcntUpdate();
+		PCSXR_WHERE(0, 0);
+	}
 
 	irq_test(&regs->CP0);
 
