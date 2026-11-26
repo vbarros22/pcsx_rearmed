@@ -892,7 +892,8 @@ static void psx_gpu_async_free(struct psx_gpu_async *agpu)
 #include <coreinit/time.h>
 #include <gx2/event.h>
 #include <coreinit/debug.h>
-#include <coreinit/memorymap.h>
+/* pcsx carries its own memorymap.h, which clashes with wut's BOOL */
+extern int OSIsAddressValid(uint32_t addr);
 extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
 extern void *pcsxr_dbg_thread[];
 
