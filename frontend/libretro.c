@@ -856,9 +856,13 @@ void pl_gun_byte2(int port, unsigned char byte)
 }
 
 #ifdef HW_WUP
+#include <coreinit/thread.h>
+#include "pcsxr-threads.h"
 /* TEMP: where the main thread is, for the hang watchdog */
 volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
-#define DBG_RUN(n) pcsxr_dbg_run = (n)
+extern void *pcsxr_dbg_thread[];
+#define DBG_RUN(n) do { pcsxr_dbg_run = (n); \
+   pcsxr_dbg_thread[PCSXRT_COUNT] = OSGetCurrentThread(); } while (0)
 #else
 #define DBG_RUN(n)
 #endif

@@ -127,9 +127,14 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
 #if defined(HW_WUP) && !defined(USE_C11_THREADS)
 #include <coreinit/thread.h>
 #endif
+#if defined(HW_WUP) && !defined(USE_C11_THREADS)
+/* TEMP: for the hang watchdog; [PCSXRT_COUNT] is the main thread */
+void *pcsxr_dbg_thread[PCSXRT_COUNT + 1];
+#endif
 void pcsxr_sthread_pin_self(enum pcsxr_thread_type type)
 {
 #if defined(HW_WUP) && !defined(USE_C11_THREADS)
+	pcsxr_dbg_thread[type] = OSGetCurrentThread();
 	if (type == PCSXRT_GPU)
 		OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU2);
 	else if (type == PCSXRT_SPU)

@@ -140,6 +140,7 @@ static STRHEAD_RET_TYPE cdra_prefetch_thread(void *unused)
 {
    u32 buf_cnt, cdda_bit, lba, lba_to;
 
+   pcsxr_sthread_pin_self(PCSXRT_CDR);
    slock_lock(acdrom.buf_lock);
    while (!acdrom.thread_exit)
    {

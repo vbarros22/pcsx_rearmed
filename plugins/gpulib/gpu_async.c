@@ -891,7 +891,46 @@ static void psx_gpu_async_free(struct psx_gpu_async *agpu)
 #include <coreinit/thread.h>
 #include <coreinit/time.h>
 #include <gx2/event.h>
+#include <coreinit/debug.h>
+#include <coreinit/memorymap.h>
 extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
+extern void *pcsxr_dbg_thread[];
+
+static void agpu_wd_sym(const char *what, uint32_t addr)
+{
+  char name[96];
+  name[0] = 0;
+  if (addr >= 0x01000000 && addr < 0x10000000)
+    OSGetSymbolName(addr, name, sizeof(name) - 1);
+  SysPrintf("WD   %s %08x %s\n", what, addr, name);
+}
+
+/* Where each thread is: a waiting thread's saved context is current */
+static void agpu_wd_dump(void)
+{
+  static const char *names[] = { "cdr", "drc", "gpu", "spu", "main" };
+  int t, i;
+  for (t = 0; t <= PCSXRT_COUNT; t++)
+  {
+    OSThread *th = (OSThread *)pcsxr_dbg_thread[t];
+    uint32_t sp;
+    if (!th)
+      continue;
+    SysPrintf("WD  thread %s state %x prio %d queue %p mutex %p\n",
+      names[t], (unsigned)th->state, (int)th->priority,
+      (void *)th->queue, (void *)th->mutex);
+    agpu_wd_sym("pc", th->context.srr0);
+    agpu_wd_sym("lr", th->context.lr);
+    sp = th->context.gpr[1];
+    for (i = 0; i < 10; i++)
+    {
+      if (!sp || (sp & 3) || !OSIsAddressValid(sp) || !OSIsAddressValid(sp + 4))
+        break;
+      agpu_wd_sym("bt", *(uint32_t *)(sp + 4));
+      sp = *(uint32_t *)sp;
+    }
+  }
+}
 static struct sthread *agpu_wd_thread;
 static volatile int agpu_wd_quit;
 static void agpu_watchdog(void *unused)
@@ -924,6 +963,8 @@ static void agpu_watchdog(void *unused)
         agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
         agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
     SysPrintf("\n");
+    if (frame == last_frame && frame)
+      agpu_wd_dump();
     last_frame = frame;
   }
 }
