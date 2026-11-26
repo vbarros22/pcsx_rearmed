@@ -898,6 +898,7 @@ extern int OSIsAddressValid(uint32_t addr);
 extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup;
 extern void *pcsxr_dbg_thread[];
 extern void pcsxr_dbg_psx(void);
+extern void pcsxr_wd_log(const char *fmt, ...);
 
 static void agpu_wd_sym(const char *what, uint32_t addr)
 {
@@ -905,7 +906,7 @@ static void agpu_wd_sym(const char *what, uint32_t addr)
   name[0] = 0;
   if (addr >= 0x01000000 && addr < 0x10000000)
     OSGetSymbolName(addr, name, sizeof(name) - 1);
-  SysPrintf("WD   %s %08x %s\n", what, addr, name);
+  pcsxr_wd_log("WD   %s %08x %s\n", what, addr, name);
 }
 
 /* Where each thread is: a waiting thread's saved context is current */
@@ -919,7 +920,7 @@ static void agpu_wd_dump(void)
     uint32_t sp;
     if (!th)
       continue;
-    SysPrintf("WD  thread %s state %x prio %d queue %p mutex %p\n",
+    pcsxr_wd_log("WD  thread %s state %x prio %d queue %p mutex %p\n",
       names[t], (unsigned)th->state, (int)th->priority,
       (void *)th->queue, (void *)th->mutex);
     agpu_wd_sym("pc", th->context.srr0);
@@ -954,26 +955,26 @@ static void agpu_watchdog(void *unused)
       continue;
     agpu = gpu.async;
     frame = gpu.state.frame_count ? *gpu.state.frame_count : 0;
+    pcsxr_wd_log("WD frame %u (%s) run %u audio %u %ux%u dup %u\n",
+      frame, frame == last_frame ? "STUCK" : "running",
+      pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup);
+    if (agpu)
+      pcsxr_wd_log("WD  agpu added %u used %u mode %d idle %u stage %u cmd %02x len %u\n",
+        agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
+        agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
+    pcsxr_dbg_psx();
     {
       int64_t sub = GX2GetLastSubmittedTimeStamp();
       int64_t ret = GX2GetRetiredTimeStamp();
       uint32_t swaps = 0, flips = 0;
-      OSTime last_flip = 0, last_vsync = 0, now = OSGetSystemTime();
+      OSTime last_flip = 0, last_vsync = 0, now;
+      pcsxr_wd_log("WD  gx2 lag %d\n", (int)(sub - ret));
       GX2GetSwapStatus(&swaps, &flips, &last_flip, &last_vsync);
-      SysPrintf("WD frame %u (%s) run %u audio %u gx2 lag %d %ux%u dup %u"
-        " swap %u flip %u flip_age %dms vsync_age %dms",
-        frame, frame == last_frame ? "STUCK" : "running",
-        pcsxr_dbg_run, pcsxr_dbg_audio, (int)(sub - ret),
-        pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup, swaps, flips,
-        (int)OSTicksToMilliseconds(now - last_flip),
+      now = OSGetSystemTime();
+      pcsxr_wd_log("WD  swap %u flip %u flip_age %dms vsync_age %dms\n",
+        swaps, flips, (int)OSTicksToMilliseconds(now - last_flip),
         (int)OSTicksToMilliseconds(now - last_vsync));
     }
-    if (agpu)
-      SysPrintf(" | agpu added %u used %u mode %d idle %u stage %u cmd %02x len %u",
-        agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
-        agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
-    SysPrintf("\n");
-    pcsxr_dbg_psx();
     if (frame == last_frame && frame)
       agpu_wd_dump();
     last_frame = frame;
