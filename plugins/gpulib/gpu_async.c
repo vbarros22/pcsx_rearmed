@@ -898,6 +898,7 @@ extern int OSIsAddressValid(uint32_t addr);
 extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup;
 extern void *pcsxr_dbg_thread[];
 extern void pcsxr_dbg_psx(void);
+extern void pcsxr_dbg_heap(void);
 extern void pcsxr_wd_log(const char *fmt, ...);
 
 static void agpu_wd_sym(const char *what, uint32_t addr)
@@ -1020,6 +1021,9 @@ static void agpu_watchdog(void *unused)
     pcsxr_wd_log("WD  ping core0 %u core1 %u core2 %u\n",
       agpu_ping[0], agpu_ping[1], agpu_ping[2]);
     pcsxr_dbg_psx();
+    pcsxr_dbg_heap();
+    if (ticks == 0 && frame < 100)
+      pcsxr_wd_log("WD  vram %p\n", (void *)gpu.vram);
     pcsxr_wd_log("WD  mem2 heap check...\n");
     pcsxr_wd_log("WD  mem2 heap %s\n",
       MEMCheckExpHeap(MEMGetBaseHeapHandle(MEM_BASE_HEAP_MEM2),

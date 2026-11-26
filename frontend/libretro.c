@@ -857,6 +857,7 @@ void pl_gun_byte2(int port, unsigned char byte)
 
 #ifdef HW_WUP
 #include <coreinit/thread.h>
+#include <coreinit/time.h>
 #include "pcsxr-threads.h"
 /* TEMP: where the main thread is, for the hang watchdog */
 volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup;
@@ -873,6 +874,70 @@ void pcsxr_wd_log(const char *fmt, ...)
    vsnprintf(buf, sizeof(buf), fmt, ap);
    va_end(ap);
    WHBLogWrite(buf);
+}
+/* Walks newlib's heap chunk by chunk, without its lock (that lock spins
+ * with interrupts off, and a stuck core may hold it). A bad header is
+ * reported only if a second walk finds it too. */
+extern char *__malloc_sbrk_base __attribute__((weak));
+extern void *sbrk(ptrdiff_t incr);
+static int pcsxr_heap_walk(u32 *bad, u32 *prev, u32 *chunks)
+{
+   u32 c, end, last = 0, n = 0;
+   if (&__malloc_sbrk_base == NULL || __malloc_sbrk_base == (char *)-1)
+      return -1;
+   c   = ((u32)__malloc_sbrk_base + 7) & ~7u;
+   end = (u32)sbrk(0);
+   while (c < end && n < 2000000)
+   {
+      u32 size = ((u32 *)c)[1] & ~3u;
+      if (size < 16 || (size & 7) || c + size > end)
+      {
+         *bad = c; *prev = last; *chunks = n;
+         return 1;
+      }
+      last = c;
+      c += size;
+      n++;
+   }
+   *bad = c; *prev = last; *chunks = n;
+   return c == end ? 0 : 2;
+}
+void pcsxr_dbg_heap(void)
+{
+   static int reported;
+   u32 bad, prev, n, bad2, prev2, n2;
+   int r = pcsxr_heap_walk(&bad, &prev, &n);
+   if (r < 0)
+   {
+      if (!reported++)
+         pcsxr_wd_log("WD  heap: no sbrk base\n");
+      return;
+   }
+   if (r == 0)
+   {
+      pcsxr_wd_log("WD  heap ok %u chunks\n", n);
+      return;
+   }
+   OSSleepTicks(OSMillisecondsToTicks(20));
+   if (pcsxr_heap_walk(&bad2, &prev2, &n2) == 0 || bad2 != bad)
+   {
+      pcsxr_wd_log("WD  heap busy\n");
+      return;
+   }
+   pcsxr_wd_log("WD  HEAP CORRUPT r%d at %08x (chunk %u) size %08x prev %08x size %08x\n",
+      r, bad, n, bad < (u32)sbrk(0) ? ((u32 *)bad)[1] : 0,
+      prev, prev ? ((u32 *)prev)[1] : 0);
+   if (prev)
+   {
+      u32 *w = (u32 *)(bad - 32);
+      pcsxr_wd_log("WD   before %08x %08x %08x %08x %08x %08x %08x %08x\n",
+         w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+      w = (u32 *)bad;
+      pcsxr_wd_log("WD   at     %08x %08x %08x %08x %08x %08x %08x %08x\n",
+         w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
+   }
+   pcsxr_wd_log("WD   bufs psxM %p psxH %p psxR %p\n",
+      psxRegs.ptrs.psxM, psxRegs.ptrs.psxH, psxRegs.ptrs.psxR);
 }
 void pcsxr_dbg_psx(void)
 {
