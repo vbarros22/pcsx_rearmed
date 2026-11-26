@@ -123,14 +123,15 @@ sthread_t *pcsxr_sthread_create(void (*thread_func)(void *),
 /* Called by a worker thread on itself as it starts. Cafe OS: a thread
  * moves itself safely; changing another, running thread's affinity from
  * outside hung the console (Wii U). The emulated CPU and lightrec's
- * codegen area stay on core 1; the software rasterizer goes to core 2. */
+ * codegen area stay on core 1; the software rasterizer and the CD
+ * read-ahead go to core 2. */
 #if defined(HW_WUP) && !defined(USE_C11_THREADS)
 #include <coreinit/thread.h>
 #endif
 void pcsxr_sthread_pin_self(enum pcsxr_thread_type type)
 {
 #if defined(HW_WUP) && !defined(USE_C11_THREADS)
-	if (type == PCSXRT_GPU)
+	if (type == PCSXRT_GPU || type == PCSXRT_CDR)
 		OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU2);
 	else if (type == PCSXRT_SPU)
 		OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU0);

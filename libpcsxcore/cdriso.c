@@ -1089,8 +1089,14 @@ static int handlechd(const char *isofile) {
 		goto fail_io;
 	}
 
-	if (Config.CHD_Precache && (chd_precache(chd_img->chd) != CHDERR_NONE))
+	if (Config.CHD_Precache && (err = chd_precache(chd_img->chd)) != CHDERR_NONE) {
+#ifdef HW_WUP
+		// too big to hold: read it from the card instead
+		SysPrintf("chd precache failed (%d), reading from the file\n", err);
+#else
 		goto fail_io;
+#endif
+	}
 
 	chd_img->header = chd_get_header(chd_img->chd);
 
