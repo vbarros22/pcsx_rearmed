@@ -859,7 +859,7 @@ void pl_gun_byte2(int port, unsigned char byte)
 #include <coreinit/thread.h>
 #include "pcsxr-threads.h"
 /* TEMP: where the main thread is, for the hang watchdog */
-volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
+volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup;
 extern void *pcsxr_dbg_thread[];
 #define DBG_RUN(n) do { pcsxr_dbg_run = (n); \
    pcsxr_dbg_thread[PCSXRT_COUNT] = OSGetCurrentThread(); } while (0)
@@ -3604,6 +3604,10 @@ void retro_run(void)
    }
 
    DBG_RUN(4);
+#ifdef HW_WUP
+   pcsxr_dbg_w = vout_width; pcsxr_dbg_h = vout_height;
+   pcsxr_dbg_dup = !(vout_fb_dirty || !vout_can_dupe);
+#endif
    video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
        vout_width, vout_height, vout_pitch_b);
    vout_fb_dirty = 0;

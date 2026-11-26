@@ -894,7 +894,8 @@ static void psx_gpu_async_free(struct psx_gpu_async *agpu)
 #include <coreinit/debug.h>
 /* pcsx carries its own memorymap.h, which clashes with wut's BOOL */
 extern int OSIsAddressValid(uint32_t addr);
-extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio;
+#include <gx2/swap.h>
+extern volatile unsigned pcsxr_dbg_run, pcsxr_dbg_audio, pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup;
 extern void *pcsxr_dbg_thread[];
 
 static void agpu_wd_sym(const char *what, uint32_t addr)
@@ -955,9 +956,16 @@ static void agpu_watchdog(void *unused)
     {
       int64_t sub = GX2GetLastSubmittedTimeStamp();
       int64_t ret = GX2GetRetiredTimeStamp();
-      SysPrintf("WD frame %u (%s) run %u audio %u gx2 lag %d",
+      uint32_t swaps = 0, flips = 0;
+      OSTime last_flip = 0, last_vsync = 0, now = OSGetSystemTime();
+      GX2GetSwapStatus(&swaps, &flips, &last_flip, &last_vsync);
+      SysPrintf("WD frame %u (%s) run %u audio %u gx2 lag %d %ux%u dup %u"
+        " swap %u flip %u flip_age %dms vsync_age %dms",
         frame, frame == last_frame ? "STUCK" : "running",
-        pcsxr_dbg_run, pcsxr_dbg_audio, (int)(sub - ret));
+        pcsxr_dbg_run, pcsxr_dbg_audio, (int)(sub - ret),
+        pcsxr_dbg_w, pcsxr_dbg_h, pcsxr_dbg_dup, swaps, flips,
+        (int)OSTicksToMilliseconds(now - last_flip),
+        (int)OSTicksToMilliseconds(now - last_vsync));
     }
     if (agpu)
       SysPrintf(" | agpu added %u used %u mode %d idle %u stage %u cmd %02x len %u",
