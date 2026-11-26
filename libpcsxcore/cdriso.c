@@ -1089,6 +1089,18 @@ static int handlechd(const char *isofile) {
 		goto fail_io;
 	}
 
+#ifdef HW_WUP
+	if (Config.CHD_Precache) {
+		// hold it only with room left for the menu
+		void *probe = malloc(get_size(cdHandle) + (64u << 20));
+		if (probe)
+			free(probe);
+		else {
+			SysPrintf("chd too big to hold, reading from the file\n");
+			Config.CHD_Precache = 0;
+		}
+	}
+#endif
 	if (Config.CHD_Precache && (err = chd_precache(chd_img->chd)) != CHDERR_NONE) {
 #ifdef HW_WUP
 		// too big to hold: read it from the card instead
