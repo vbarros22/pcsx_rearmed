@@ -1068,6 +1068,22 @@ fail_io:
 }
 
 #ifdef HAVE_CHD
+#ifdef HW_WUP
+static unsigned largest_free_mb(void) {
+	unsigned lo = 0, hi = 1024;
+	while (lo < hi) {
+		unsigned mid = (lo + hi + 1) / 2;
+		void *p = malloc((size_t)mid << 20);
+		if (p) {
+			free(p);
+			lo = mid;
+		} else
+			hi = mid - 1;
+	}
+	return lo;
+}
+#endif
+
 static int handlechd(const char *isofile) {
 	int frame_offset = 150;
 	int file_offset = 0;
@@ -1090,6 +1106,7 @@ static int handlechd(const char *isofile) {
 	}
 
 #ifdef HW_WUP
+	SysPrintf("largest free block: %u MB\n", largest_free_mb());
 	if (Config.CHD_Precache) {
 		// hold it only with room left for the menu
 		void *probe = malloc(get_size(cdHandle) + (64u << 20));
@@ -1109,6 +1126,9 @@ static int handlechd(const char *isofile) {
 		goto fail_io;
 #endif
 	}
+#ifdef HW_WUP
+	SysPrintf("largest free block: %u MB\n", largest_free_mb());
+#endif
 
 	chd_img->header = chd_get_header(chd_img->chd);
 
