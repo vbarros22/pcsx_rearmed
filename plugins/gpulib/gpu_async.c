@@ -918,14 +918,24 @@ static void agpu_wd_dump(void)
   {
     OSThread *th = (OSThread *)pcsxr_dbg_thread[t];
     uint32_t sp;
+    int suspended = 0;
     if (!th)
       continue;
+    /* A running thread's saved context is stale: stop it to read it */
+    if (th->state == 2)
+    {
+      OSSuspendThread(th);
+      suspended = 1;
+      for (i = 0; i < 50 && th->state == 2; i++)
+        OSSleepTicks(OSMillisecondsToTicks(1));
+      pcsxr_wd_log("WD  thread %s suspended, state now %x\n", names[t], (unsigned)th->state);
+    }
     pcsxr_wd_log("WD  thread %s state %x prio %d queue %p mutex %p\n",
       names[t], (unsigned)th->state, (int)th->priority,
       (void *)th->queue, (void *)th->mutex);
     agpu_wd_sym("pc", th->context.srr0);
     agpu_wd_sym("lr", th->context.lr);
-    if (th->state == 2)
+    if (suspended)
     {
       uint32_t *g = th->context.gpr, pc = th->context.srr0 & ~3u;
       for (i = 0; i < 32; i += 8)
@@ -948,6 +958,8 @@ static void agpu_wd_dump(void)
       agpu_wd_sym("bt", *(uint32_t *)(sp + 4));
       sp = *(uint32_t *)sp;
     }
+    if (suspended)
+      OSResumeThread(th);
   }
 }
 static struct sthread *agpu_wd_thread;
