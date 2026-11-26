@@ -921,15 +921,8 @@ static void agpu_wd_dump(void)
     int suspended = 0;
     if (!th)
       continue;
-    /* A running thread's saved context is stale: stop it to read it */
-    if (th->state == 2)
-    {
-      OSSuspendThread(th);
-      suspended = 1;
-      for (i = 0; i < 50 && th->state == 2; i++)
-        OSSleepTicks(OSMillisecondsToTicks(1));
-      pcsxr_wd_log("WD  thread %s suspended, state now %x\n", names[t], (unsigned)th->state);
-    }
+    /* OSSuspendThread on it never returned: its context is stale */
+    suspended = th->state == 2;
     pcsxr_wd_log("WD  thread %s state %x prio %d queue %p mutex %p\n",
       names[t], (unsigned)th->state, (int)th->priority,
       (void *)th->queue, (void *)th->mutex);
@@ -958,9 +951,44 @@ static void agpu_wd_dump(void)
       agpu_wd_sym("bt", *(uint32_t *)(sp + 4));
       sp = *(uint32_t *)sp;
     }
-    if (suspended)
-      OSResumeThread(th);
   }
+}
+/* A top-priority thread per core counting every 5 ms: a count that
+ * stops says that core no longer schedules (interrupts off, or the
+ * scheduler lock held) */
+#include <coreinit/memheap.h>
+#include <coreinit/memexpheap.h>
+static volatile uint32_t agpu_ping[3];
+static volatile int agpu_ping_quit;
+static OSThread agpu_ping_th[3] __attribute__((aligned(16)));
+static uint8_t agpu_ping_stack[3][0x1000] __attribute__((aligned(16)));
+static int agpu_ping_func(int core, void *argv)
+{
+  while (!agpu_ping_quit)
+  {
+    agpu_ping[core]++;
+    OSSleepTicks(OSMillisecondsToTicks(5));
+  }
+  return 0;
+}
+static void agpu_ping_start(void)
+{
+  static const OSThreadAttributes aff[3] = { OS_THREAD_ATTRIB_AFFINITY_CPU0,
+    OS_THREAD_ATTRIB_AFFINITY_CPU1, OS_THREAD_ATTRIB_AFFINITY_CPU2 };
+  int c;
+  agpu_ping_quit = 0;
+  for (c = 0; c < 3; c++)
+    if (OSCreateThread(&agpu_ping_th[c], agpu_ping_func, c, NULL,
+          agpu_ping_stack[c] + sizeof(agpu_ping_stack[c]),
+          sizeof(agpu_ping_stack[c]), 1, aff[c]))
+      OSResumeThread(&agpu_ping_th[c]);
+}
+static void agpu_ping_stop(void)
+{
+  int c;
+  agpu_ping_quit = 1;
+  for (c = 0; c < 3; c++)
+    OSJoinThread(&agpu_ping_th[c], NULL);
 }
 static struct sthread *agpu_wd_thread;
 static volatile int agpu_wd_quit;
@@ -989,7 +1017,13 @@ static void agpu_watchdog(void *unused)
       pcsxr_wd_log("WD  agpu added %u used %u mode %d idle %u stage %u cmd %02x len %u\n",
         agpu->pos_added, agpu->pos_used, (int)agpu->wait_mode, agpu->idle,
         agpu_dbg_stage, agpu_dbg_cmd, agpu_dbg_len);
+    pcsxr_wd_log("WD  ping core0 %u core1 %u core2 %u\n",
+      agpu_ping[0], agpu_ping[1], agpu_ping[2]);
     pcsxr_dbg_psx();
+    pcsxr_wd_log("WD  mem2 heap check...\n");
+    pcsxr_wd_log("WD  mem2 heap %s\n",
+      MEMCheckExpHeap(MEMGetBaseHeapHandle(MEM_BASE_HEAP_MEM2),
+        MEM_EXP_HEAP_CHECK_FLAGS_LOG_ERRORS) ? "ok" : "CORRUPT");
     {
       int64_t sub = GX2GetLastSubmittedTimeStamp();
       int64_t ret = GX2GetRetiredTimeStamp();
@@ -1013,6 +1047,7 @@ static void agpu_wd_start(void)
   if (agpu_wd_thread)
     return;
   agpu_wd_quit = 0;
+  agpu_ping_start();
   agpu_wd_thread = pcsxr_sthread_create(agpu_watchdog, PCSXRT_CDR);
 }
 
@@ -1023,6 +1058,7 @@ void agpu_wd_stop(void)
   agpu_wd_quit = 1;
   sthread_join(agpu_wd_thread);
   agpu_wd_thread = NULL;
+  agpu_ping_stop();
 }
 #endif
 
