@@ -2495,13 +2495,16 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_PRELOAD_PC, &lightrec_test_preload_pc),
 };
 
+/* TEMP: bit i skips pass i; bit 13 idle detection, bit 14 PC preload */
+unsigned int lightrec_skip_opts;
+
 int lightrec_optimize(struct lightrec_state *state, struct block *block)
 {
 	unsigned int i;
 	int ret;
 
 	for (i = 0; i < ARRAY_SIZE(lightrec_optimizers); i++) {
-		if (lightrec_optimizers[i]) {
+		if (lightrec_optimizers[i] && !(lightrec_skip_opts & (1u << i))) {
 			ret = (*lightrec_optimizers[i])(state, block);
 			if (ret)
 				return ret;

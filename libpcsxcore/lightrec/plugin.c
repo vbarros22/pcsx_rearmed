@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <assert.h>
@@ -427,6 +428,23 @@ static int lightrec_plugin_init(void)
 
 	if (cycles)
 		lightrec_begin_cycles = (unsigned int) strtol(cycles, NULL, 0);
+#endif
+
+#ifdef HW_WUP
+	{
+		/* TEMP: lightrec passes to skip, for finding a miscompile */
+		extern unsigned int lightrec_skip_opts;
+		FILE *f = fopen("sd:/retroarch/lightrec_skip.txt", "r");
+		char buf[32];
+
+		lightrec_skip_opts = 0;
+		if (f) {
+			if (fgets(buf, sizeof(buf), f))
+				lightrec_skip_opts = strtoul(buf, NULL, 0);
+			fclose(f);
+		}
+		SysPrintf("lightrec skip opts: 0x%x\n", lightrec_skip_opts);
+	}
 #endif
 
 	lightrec_state = lightrec_init(LIGHTREC_PROG_NAME,

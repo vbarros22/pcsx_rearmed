@@ -3,6 +3,7 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
+extern unsigned int lightrec_skip_opts; /* TEMP */
 #include "arch.h"
 #include "blockcache.h"
 #include "debug.h"
@@ -1554,7 +1555,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (!_jit)
 		return -ENOMEM;
 
-	if (OPT_DETECT_IDLE && !block_has_flag(block, BLOCK_NO_OPCODE_LIST))
+	if (OPT_DETECT_IDLE && !(lightrec_skip_opts & (1u << 13))
+	    && !block_has_flag(block, BLOCK_NO_OPCODE_LIST))
 		lightrec_detect_idle(block);
 
 	oldjit = block->_jit;
@@ -1564,7 +1566,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	lightrec_regcache_reset(cstate->reg_cache);
 
-	if (OPT_PRELOAD_PC && (block->flags & BLOCK_PRELOAD_PC))
+	if (OPT_PRELOAD_PC && !(lightrec_skip_opts & (1u << 14))
+	    && (block->flags & BLOCK_PRELOAD_PC))
 		lightrec_preload_pc(cstate->reg_cache, _jit);
 
 	if (!arch_has_fast_mask())
