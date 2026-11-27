@@ -8,6 +8,7 @@
  * See the COPYING file in the top-level directory.
  */
 
+#include "../../frontend/wiiu/prof.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -928,7 +929,15 @@ static noinline void flush_cmd_buffer(struct psx_gpu *gpu)
   }
 }
 
+static void GPUwriteDataMem_(uint32_t *mem, int count);
 void GPUwriteDataMem(uint32_t *mem, int count)
+{
+  PROF_BEGIN(t);
+  GPUwriteDataMem_(mem, count);
+  PROF_END(4, t);
+}
+
+static void GPUwriteDataMem_(uint32_t *mem, int count)
 {
   int dummy = 0, left;
 
@@ -954,7 +963,19 @@ void GPUwriteData(uint32_t data)
   }
 }
 
+static long GPUdmaChain_(uint32_t *rambase, uint32_t start_addr,
+  uint32_t *progress_addr, int32_t *cycles_last_cmd);
 long GPUdmaChain(uint32_t *rambase, uint32_t start_addr,
+  uint32_t *progress_addr, int32_t *cycles_last_cmd)
+{
+  long r;
+  PROF_BEGIN(t);
+  r = GPUdmaChain_(rambase, start_addr, progress_addr, cycles_last_cmd);
+  PROF_END(3, t);
+  return r;
+}
+
+static long GPUdmaChain_(uint32_t *rambase, uint32_t start_addr,
   uint32_t *progress_addr, int32_t *cycles_last_cmd)
 {
   uint32_t addr, *list, ld_addr;

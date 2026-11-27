@@ -6,6 +6,7 @@
  */
 
 #define _GNU_SOURCE 1 // strcasestr
+#include "wiiu/prof.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -413,7 +414,17 @@ static void CrosshairDimensions(int port, struct CrosshairInfo *info) {
    info->size_y = psx_h * (pl_rearmed_cbs.gpu_neon.enhancement_enable ? 2 : 1) * (4.0f / 3.0f) / 40.0f;
 }
 
+static void vout_flip_(const void *vram_, int vram_ofs, int bgr24,
+      int x, int y, int w, int h, int dims_changed);
 static void vout_flip(const void *vram_, int vram_ofs, int bgr24,
+      int x, int y, int w, int h, int dims_changed)
+{
+   PROF_BEGIN(t);
+   vout_flip_(vram_, vram_ofs, bgr24, x, y, w, h, dims_changed);
+   PROF_END(6, t);
+}
+
+static void vout_flip_(const void *vram_, int vram_ofs, int bgr24,
       int x, int y, int w, int h, int dims_changed)
 {
    int bytes_pp = (current_fmt == RETRO_PIXEL_FORMAT_XRGB8888) ? 4 : 2;
@@ -858,8 +869,10 @@ void pl_gun_byte2(int port, unsigned char byte)
 /* sound calls */
 static void snd_feed(void *buf, int bytes)
 {
+   PROF_BEGIN(t);
    if (audio_batch_cb != NULL)
       audio_batch_cb(buf, bytes / 4);
+   PROF_END(2, t);
 }
 
 void out_register_libretro(struct out_driver *drv)
@@ -3506,8 +3519,51 @@ static void print_internal_fps(void)
 static bool get_bios_config_hle(void);
 static void prepare_bios(bool use_hle);
 
+#ifdef HW_WUP
+OSTime pcsxr_prof[8];
+
+static void prof_frame(OSTime start)
+{
+   static OSTime last_end, window;
+   static unsigned frames, sizes_changed;
+   static unsigned last_w, last_h;
+   OSTime now = OSGetSystemTime();
+   int i;
+
+   if (last_end)
+      pcsxr_prof[7] += start - last_end;
+   last_end = now;
+   if (vout_width != last_w || vout_height != last_h)
+      sizes_changed++;
+   last_w = vout_width;
+   last_h = vout_height;
+   if (!window)
+      window = now;
+   frames++;
+   if (now - window < (OSTime)OSSecondsToTicks(2))
+      return;
+   SysPrintf("prof %u fr %ux%u chg %u | us/fr exec %u gpu %u wmem %u spu %u flip %u video %u audio %u fe %u\n",
+      frames, vout_width, vout_height, sizes_changed,
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[0]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[3]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[4]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[5]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[6]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[1]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[2]) / frames),
+      (unsigned)(OSTicksToMicroseconds(pcsxr_prof[7]) / frames));
+   for (i = 0; i < 8; i++)
+      pcsxr_prof[i] = 0;
+   frames = sizes_changed = 0;
+   window = now;
+}
+#endif
+
 void retro_run(void)
 {
+#ifdef HW_WUP
+   OSTime prof_start = OSGetSystemTime();
+#endif
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
    if (reset_pending)
    {
@@ -3568,7 +3624,11 @@ void retro_run(void)
       update_variables(true);
 
    psxRegs.stop = 0;
-   psxCpu->Execute(&psxRegs);
+   {
+      PROF_BEGIN(t);
+      psxCpu->Execute(&psxRegs);
+      PROF_END(0, t);
+   }
 
    if (pl_rearmed_cbs.fskip_dirty) {
       if (frameskip_counter >= frameskip_interval || !pl_rearmed_cbs.fskip_force)
@@ -3582,9 +3642,16 @@ void retro_run(void)
       pl_rearmed_cbs.fskip_dirty = 0;
    }
 
-   video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
-       vout_width, vout_height, vout_pitch_b);
+   {
+      PROF_BEGIN(t);
+      video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
+          vout_width, vout_height, vout_pitch_b);
+      PROF_END(1, t);
+   }
    vout_fb_dirty = 0;
+#ifdef HW_WUP
+   prof_frame(prof_start);
+#endif
 
 #ifdef HAVE_CDROM
    int inserted;

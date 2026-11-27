@@ -997,7 +997,16 @@ static const void * const worker = NULL;
 // here is the main job handler...
 ////////////////////////////////////////////////////////////////////////
 
+static void do_samples_(unsigned int cycles_to, int force_no_thread);
+#include "../../frontend/wiiu/prof.h"
 void do_samples(unsigned int cycles_to, int force_no_thread)
+{
+ PROF_BEGIN(t);
+ do_samples_(cycles_to, force_no_thread);
+ PROF_END(5, t);
+}
+
+static void do_samples_(unsigned int cycles_to, int force_no_thread)
 {
  unsigned int silentch;
  int cycle_diff;
