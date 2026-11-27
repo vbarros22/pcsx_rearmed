@@ -414,6 +414,47 @@ static void CrosshairDimensions(int port, struct CrosshairInfo *info) {
    info->size_y = psx_h * (pl_rearmed_cbs.gpu_neon.enhancement_enable ? 2 : 1) * (4.0f / 3.0f) / 40.0f;
 }
 
+#ifdef HW_WUP
+/* The frontend samples the shown rows of VRAM in place: they stay put
+ * until the game flips to another buffer. */
+#define RETRO_ENVIRONMENT_WIIU_LEND_FRAME (RETRO_ENVIRONMENT_PRIVATE | 0x5701)
+struct retro_wiiu_frame_lend
+{
+   const void *data;
+   unsigned width;
+   unsigned height;
+   size_t pitch;
+};
+static struct retro_wiiu_frame_lend vout_lend;
+static int vout_lent;
+
+static int vout_lend_vram(const unsigned char *vram, int vram_ofs,
+      int w, int h)
+{
+   int sstride = 2048;
+
+   if (pl_rearmed_cbs.thread_rendering
+         || (in_enable_crosshair[0] + in_enable_crosshair[1]) > 0)
+      return 0;
+   if (h >= vout_height * 3 / 2) {
+      sstride = 4096;
+      h /= 2;
+   }
+   h = min(h, vout_height);
+   w = min(w, vout_width);
+   if (w <= 0 || h <= 0
+         || (vram_ofs & 2047) + w * 2 > 2048
+         || vram_ofs + (h - 1) * sstride + w * 2 > 0x100000)
+      return 0;
+
+   vout_lend.data   = vram + vram_ofs;
+   vout_lend.width  = w;
+   vout_lend.height = h;
+   vout_lend.pitch  = sstride;
+   return environ_cb(RETRO_ENVIRONMENT_WIIU_LEND_FRAME, &vout_lend);
+}
+#endif
+
 static void vout_flip_(const void *vram_, int vram_ofs, int bgr24,
       int x, int y, int w, int h, int dims_changed);
 static void vout_flip(const void *vram_, int vram_ofs, int bgr24,
@@ -438,6 +479,13 @@ static void vout_flip_(const void *vram_, int vram_ofs, int bgr24,
    int w_blit = min(w, vout_width);
    int port = 0, hwrapped;
    int sstride = 2048;
+
+#ifdef HW_WUP
+   vout_lent = vram && !bgr24 && !enhres
+      && vout_lend_vram(vram, vram_ofs, w, h);
+   if (vout_lent)
+      goto out;
+#endif
 
    if (vram == NULL || dims_changed || (in_enable_crosshair[0] + in_enable_crosshair[1]) > 0)
    {
@@ -3644,6 +3692,12 @@ void retro_run(void)
 
    {
       PROF_BEGIN(t);
+#ifdef HW_WUP
+      if (vout_lent && (vout_fb_dirty || !vout_can_dupe))
+         video_cb(vout_lend.data, vout_lend.width, vout_lend.height,
+             vout_lend.pitch);
+      else
+#endif
       video_cb((vout_fb_dirty || !vout_can_dupe) ? vout_buf_ptr : NULL,
           vout_width, vout_height, vout_pitch_b);
       PROF_END(1, t);
