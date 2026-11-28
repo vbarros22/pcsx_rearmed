@@ -89,12 +89,28 @@ extern void lightrec_code_inv(void *ptr, uint32_t len);
 
 static char cache_buf[64 * 1024];
 
+static void gte_unhandled(struct lightrec_registers_cp2 *regs, u32 code)
+{
+}
+
 static lightrec_gte_handler_t get_gte_hdl(u32 code, bool nf)
 {
+	lightrec_gte_handler_t hdl;
+
 	if (nf)
-		return (lightrec_gte_handler_t)gteGetHandler_nf(code);
+		hdl = (lightrec_gte_handler_t)gteGetHandler_nf(code);
 	else
-		return (lightrec_gte_handler_t)gteGetHandler(code);
+		hdl = (lightrec_gte_handler_t)gteGetHandler(code);
+
+	/* lightrec calls the handler unchecked */
+	if (!hdl) {
+		static u32 last;
+		if (code != last)
+			SysPrintf("TEMP unhandled gte op %08x\n", code);
+		last = code;
+		hdl = gte_unhandled;
+	}
+	return hdl;
 }
 
 static bool has_interrupt(void)
