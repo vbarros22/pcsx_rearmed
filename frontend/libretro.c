@@ -3617,10 +3617,13 @@ static char wd_stack[16 * 1024] __attribute__((aligned(16)));
 
 static int wd_func(int argc, void *argv)
 {
-   unsigned last = 0, still = 0, samples = 0;
+   unsigned last = 0, still = 0, samples = 0, beats = 0;
+   SysPrintf("TEMP watchdog up\n");
    for (;;)
    {
       OSSleepTicks(OSMillisecondsToTicks(250));
+      if (++beats % 8 == 0)
+         SysPrintf("TEMP hb %u frame %u\n", beats / 8, wd_frames);
       if (wd_frames != last)
       {
          last = wd_frames;
@@ -3661,6 +3664,8 @@ static void wd_start(void)
          wd_stack + sizeof(wd_stack), sizeof(wd_stack), 16,
          OS_THREAD_ATTRIB_AFFINITY_CPU0))
       OSResumeThread(&wd_thread);
+   else
+      SysPrintf("TEMP watchdog create failed\n");
 }
 #endif
 
