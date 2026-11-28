@@ -3607,10 +3607,70 @@ static void prof_frame(OSTime start)
 }
 #endif
 
+#ifdef HW_WUP
+/* TEMP: report where the emulation thread is when frames stop */
+#include <coreinit/thread.h>
+static OSThread *wd_main;
+static volatile unsigned wd_frames;
+static OSThread wd_thread;
+static char wd_stack[16 * 1024] __attribute__((aligned(16)));
+
+static int wd_func(int argc, void *argv)
+{
+   unsigned last = 0, still = 0, samples = 0;
+   for (;;)
+   {
+      OSSleepTicks(OSMillisecondsToTicks(250));
+      if (wd_frames != last)
+      {
+         last = wd_frames;
+         still = samples = 0;
+         continue;
+      }
+      if (++still < 12 || samples >= 12)
+         continue;
+      {
+         uint32_t pc, lr, ctr, sp, r3, r4, r30, r31;
+         int i, susp = 0;
+         OSSuspendThread(wd_main);
+         for (i = 0; i < 50 && !(susp = OSIsThreadSuspended(wd_main)); i++)
+            OSSleepTicks(OSMillisecondsToTicks(2));
+         pc  = wd_main->context.srr0;
+         lr  = wd_main->context.lr;
+         ctr = wd_main->context.ctr;
+         sp  = wd_main->context.gpr[1];
+         r3  = wd_main->context.gpr[3];
+         r4  = wd_main->context.gpr[4];
+         r30 = wd_main->context.gpr[30];
+         r31 = wd_main->context.gpr[31];
+         OSResumeThread(wd_main);
+         SysPrintf("TEMP hang %u frame %u susp %d pc %08x lr %08x ctr %08x sp %08x r3 %08x r4 %08x r30 %08x r31 %08x psxpc %08x cyc %08x\n",
+            samples, last, susp, (unsigned)pc, (unsigned)lr, (unsigned)ctr,
+            (unsigned)sp, (unsigned)r3, (unsigned)r4, (unsigned)r30,
+            (unsigned)r31, (unsigned)psxRegs.pc, (unsigned)psxRegs.cycle);
+         samples++;
+      }
+   }
+   return 0;
+}
+
+static void wd_start(void)
+{
+   wd_main = OSGetCurrentThread();
+   if (OSCreateThread(&wd_thread, wd_func, 0, NULL,
+         wd_stack + sizeof(wd_stack), sizeof(wd_stack), 16,
+         OS_THREAD_ATTRIB_AFFINITY_CPU0))
+      OSResumeThread(&wd_thread);
+}
+#endif
+
 void retro_run(void)
 {
 #ifdef HW_WUP
    OSTime prof_start = OSGetSystemTime();
+   if (!wd_main)
+      wd_start();
+   wd_frames++;
 #endif
    //SysReset must be run while core is running,Not in menu (Locks up Retroarch)
    if (reset_pending)
