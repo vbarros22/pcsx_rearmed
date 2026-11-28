@@ -51,13 +51,39 @@ void OSGetCodegenVirtAddrRange(void **outVirtualAddress, uint32_t *outSize);
 uint32_t OSGetCodegenCore(void);
 int OSSwitchSecCodeGenMode(int mode); /* 0: RW-, 1: R-X */
 uint32_t OSGetCoreId(void);
+int OSDynLoad_Acquire(const char *name, void **outModule);
+int OSDynLoad_FindExport(void *module, int isData, const char *name, void **outAddr);
 
 /* The codegen area is either writable or executable, never both. Lightrec
  * brackets every write to its code buffer (allocator, emitter) with
  * lightrec_wiiu_code_write(1)/(0); calls nest. */
 static int codegen_write_depth;
+static bool codegen_area;
+
+/* Aroma's memory mapping module hands out RWX memory, which needs no
+ * mode switch; the codegen area is the fallback without it. */
+static void (*mapped_free)(void *ptr);
+
+static void *mapped_code_alloc(void) {
+	void *mod;
+	void *(**alloc)(uint32_t size, int32_t align) = NULL;
+	void (**release)(void *ptr) = NULL;
+
+	if (OSDynLoad_Acquire("homebrew_memorymapping", &mod) != 0)
+		return NULL;
+	if (OSDynLoad_FindExport(mod, 1,
+	                         "MEMAllocFromMappedMemoryEx", (void **)&alloc) != 0
+	    || OSDynLoad_FindExport(mod, 1,
+	                            "MEMFreeToMappedMemory", (void **)&release) != 0
+	    || !alloc || !*alloc || !release || !*release)
+		return NULL;
+	mapped_free = *release;
+	return (*alloc)(CODE_BUFFER_SIZE, 0x1000);
+}
 
 void lightrec_wiiu_code_write(int enable) {
+	if (!codegen_area)
+		return;
 	if (enable) {
 		if (codegen_write_depth++ == 0)
 			OSSwitchSecCodeGenMode(0);
@@ -108,6 +134,13 @@ int lightrec_init_mmap(void) {
 		goto cleanup_allocations;
 	}
 
+	code_buffer = mapped_code_alloc();
+	if (code_buffer) {
+		codegen_area = false;
+		printf("[lightrec] code buffer %p in mapped memory\n", code_buffer);
+		return 0;
+	}
+
 	{
 		void *cg_addr = NULL;
 		uint32_t cg_size = 0;
@@ -125,6 +158,7 @@ int lightrec_init_mmap(void) {
 			goto cleanup_allocations;
 		}
 		codegen_write_depth = 0;
+		codegen_area = true;
 		OSSwitchSecCodeGenMode(1);
 		code_buffer = cg_addr;
 	}
@@ -140,6 +174,10 @@ cleanup_allocations:
 }
 
 void lightrec_free_mmap(void) {
+	if (!codegen_area && code_buffer && mapped_free) {
+		mapped_free(code_buffer);
+		code_buffer = NULL;
+	}
 	for (int i = 0; i < 4; i++)
 		wiiu_unmap(psxRegs.ptrs.psxM + 0x200000 * i, 0x200000);
 	wiiu_unmap(psxRegs.ptrs.psxP, 0x10000);
